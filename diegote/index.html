@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Corre Que Viene el Diegote</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+  /* Layout: marcador de estadio; la pantalla del juego es el videomarcador, los botones son el banquillo. */
+  :root {
+    --night: #0f1a2e;      /* noche de estadio */
+    --board: #1a2742;      /* carcasa del marcador */
+    --rim: #2f4a7a;        /* borde del marcador */
+    --ink: #f4f1e8;        /* texto */
+    --dim: #93a6c9;        /* texto secundario */
+    --accent: #ff9a2e;     /* naranja de marcador */
+    --blue: #1f5fd6;       /* azul del oso */
+    --pixel: "Press Start 2P", "Courier New", monospace;
+    --term: "VT323", "Courier New", monospace;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--night);
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0);
+    background-size: 6px 6px;
+    color: var(--ink);
+    font-family: var(--term);
+    font-size: 22px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 28px;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+  h1 {
+    font-family: var(--pixel); font-size: clamp(13px, 3.4vw, 24px); margin: 0; letter-spacing: .03em; line-height: 1.4;
+    color: var(--ink); text-shadow: 3px 3px 0 #000; text-wrap: balance;
+  }
+  h1 span { color: var(--accent); }
+  .tag { color: var(--dim); font-size: 22px; }
+
+  .cabinet { background: var(--board); border: 4px solid var(--rim); box-shadow: 0 0 0 4px #000, 8px 8px 0 4px #000; padding: 10px; }
+  .stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: pointer; }
+  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: clamp(8px, 2.2vw, 16px); text-align: center; padding: 12px; background: rgba(10, 16, 32, .74);
+  }
+  .overlay h2 { font-family: var(--pixel); font-size: clamp(12px, 3.2vw, 26px); margin: 0; color: var(--accent); text-shadow: 3px 3px 0 #000; line-height: 1.35; text-wrap: balance; }
+  .overlay p { margin: 0; font-size: clamp(17px, 2.8vw, 26px); line-height: 1.1; max-width: 40ch; }
+  .overlay .stats { font-family: var(--pixel); font-size: clamp(9px, 1.6vw, 13px); line-height: 2; }
+  .btn { font-family: var(--pixel); font-size: clamp(10px, 1.8vw, 14px); color: #10182c; background: var(--accent); border: 0; padding: 12px 18px; cursor: pointer; box-shadow: 4px 4px 0 #000; letter-spacing: .05em; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #000; }
+  .btn:focus-visible, .ghost:focus-visible, .pad:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  .blink { animation: blink 1s steps(2) infinite; font-family: var(--pixel); font-size: clamp(8px, 1.4vw, 11px); color: var(--dim); }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
+
+  .pads { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pad {
+    font-family: var(--pixel); font-size: clamp(10px, 2.4vw, 14px); color: var(--ink); background: var(--rim);
+    border: 0; padding: 18px 10px; box-shadow: 4px 4px 0 #000; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  .pad.legs { background: var(--blue); }
+  .pad:active, .pad.on { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #000; filter: brightness(1.15); }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; justify-content: space-between; color: var(--dim); }
+  .keys { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  kbd { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: var(--rim); padding: 5px 7px; box-shadow: 2px 2px 0 #000; margin-right: 6px; }
+  .ghost { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: transparent; border: 2px solid var(--rim); padding: 8px 10px; cursor: pointer; }
+  .ghost:hover { border-color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CORRE QUE VIENE <span>EL DIEGOTE</span></h1>
+    <div class="tag">100 yardas, una pelota y tres piernas.</div>
+  </header>
+
+  <div class="cabinet">
+    <div class="stage" id="stage">
+      <canvas id="game" width="320" height="180" aria-label="Juego: un jugador de fútbol americano de tres piernas corre con la pelota"></canvas>
+
+      <div class="overlay" id="ovTitle">
+        <h2>CORRE QUE VIENE<br>EL DIEGOTE</h2>
+        <p>El Diegote lleva la pelota y tiene tres piernas. Salta lo que se cruce, desenreda las piernas cuando se traben y llega al touchdown. El premio lo espera al final.</p>
+        <button class="btn" id="btnStart" type="button">JUGAR</button>
+        <div class="blink">ESPACIO SALTA &middot; S DESENREDA</div>
+      </div>
+
+      <div class="overlay" id="ovOver" hidden>
+        <h2>FUMBLE!</h2>
+        <div class="stats" id="overStats"></div>
+        <button class="btn" id="btnRetry" type="button">REINTENTAR</button>
+      </div>
+
+      <div class="overlay" id="ovWin" hidden>
+        <h2>TOUCHDOWN!</h2>
+        <p>El Diegote llegó al burdel y se lleva su abrazo doble.</p>
+        <div class="stats" id="winStats"></div>
+        <button class="btn" id="btnAgain" type="button">OTRA JUGADA</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pads">
+    <button class="pad legs" id="padLegs" type="button">&darr; PIERNAS</button>
+    <button class="pad" id="padJump" type="button">&uarr; SALTAR</button>
+  </div>
+
+  <div class="bar">
+    <div class="keys">
+      <span><kbd>ESPACIO</kbd><kbd>&uarr;</kbd>saltar (mantén para más altura)</span>
+      <span><kbd>S</kbd><kbd>&darr;</kbd>desenredar las piernas cuando sale el aviso</span>
+    </div>
+    <button class="ghost" id="btnMute" type="button" aria-pressed="false">SONIDO: ON</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Configuración ----------
+  const W = 320, H = 180, GROUND = 156;
+  const YARD = 60;                  // px por yarda
+  const GOAL = 100 * YARD;          // línea de touchdown
+  const BLD = GOAL + 420;           // burdel (posición en el mundo)
+  const PX = 46;                    // x del jugador en pantalla
+  const ANCHOR = PX + 14;           // pecho del jugador = g.dist en el mundo
+  const sx = wx => Math.round(wx - g.dist + ANCHOR);
+
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const $ = id => document.getElementById(id);
+
+  // ---------- Sprites ----------
+  const BASE = {
+    K: '#141218', H: '#152a5c', h: '#3d63b8', S: '#c98a5e', E: '#141218', F: '#9aa3b5',
+    J: '#f4f1e8', A: '#1f5fd6', P: '#d9b44a', L: '#7a3f1c', l: '#f4f1e8',
+    R: '#d8323c', r: '#8f1d28', W: '#f4f1e8', O: '#ff8a1f', o: '#b8520c', G: '#2fae5a', g: '#1d7a3c',
+    Y: '#ffd84a', y: '#c99a1a', V: '#e8434f', v: '#8f1d28',
+  };
+  function sprite(rows, over = {}) {
+    const pal = { ...BASE, ...over };
+    const c = document.createElement('canvas');
+    c.width = rows[0].length; c.height = rows.length;
+    const x = c.getContext('2d');
+    rows.forEach((row, j) => [...row].forEach((ch, i) => {
+      if (ch !== '.' && pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(i, j, 1, 1); }
+    }));
+    return c;
+  }
+
+  // Jugador: casco azul, camiseta blanca con oso azul en el pecho, pelota bajo el brazo (22x18 + piernas)
+  const body = sprite([
+    "........HHHHH.........",
+    ".......HHHHHHH........",
+    "......HhHHHHHHH.......",
+    "......HhHHHSSFF.......",
+    "......HhHHSESFFF......",
+    "......HHHHSSSFF.......",
+    ".......HHHSSFF........",
+    "........HSSS..........",
+    ".....JJJJJJJJJ........",
+    "....JJJJJJJJJJJ.......",
+    "....JJJAJJAJJJJ.......",
+    "....JJJAAAAJJSS.......",
+    "....JJAAAAAAJSLLL.....",
+    "....JJJAAAAJJLlLLL....",
+    ".....JJAJJAJJJLLL.....",
+    ".....JJJJJJJJJ........",
+    ".....PPPPPPPPP........",
+    ".....PPPPPPPPP........",
+  ]);
+  const HIPS = [6, 8, 10];
+  const LEG_COL = [
+    { thigh: '#a8892f', sock: '#123f9a', shoe: '#0b0a10' },
+    { thigh: '#c4a23c', sock: '#1a50bf', shoe: '#141218' },
+    { thigh: '#e3c158', sock: '#2a66e0', shoe: '#232030' },
+  ];
+  function drawLeg(x0, y0, c, dx, lift) {
+    const L = 8 - lift;
+    for (let r = 0; r < L; r++) {
+      const t = L > 1 ? r / (L - 1) : 0;
+      const x = Math.round(x0 + dx * t);
+      const y = y0 + r;
+      if (r === L - 1) { ctx.fillStyle = c.shoe; ctx.fillRect(x, y, 3, 1); }
+      else { ctx.fillStyle = r < 2 ? c.thigh : c.sock; ctx.fillRect(x, y, 2, 1); }
+    }
+  }
+  function drawPlayer(x, feetY, mode) {
+    const top = feetY - 26;
+    const legsY = top + 18;
+    for (let i = 0; i < 3; i++) {
+      let dx = 0, lift = 0;
+      if (mode === 'run') { const a = g.dist / 9 + i * 2.094; dx = Math.sin(a) * 5; lift = Math.round(Math.max(0, Math.cos(a)) * 3); }
+      else if (mode === 'air') { dx = (i - 1) * 4; lift = 3; }
+      else if (mode === 'tangle') { dx = [5, -5, 0][i] + Math.sin(g.t / 3 + i) * 1.5; lift = i === 2 ? 1 : 0; }
+      else if (mode === 'hug') { dx = (i - 1) * 2; lift = 0; }
+      drawLeg(x + HIPS[i], legsY, LEG_COL[i], dx, lift);
+    }
+    ctx.drawImage(body, x, top);
+  }
+
+  // Mujeres del burdel (de frente, 12x21)
+  const WOMAN = [
+    "....XXXX....",
+    "...XXXXXX...",
+    "..XXSSSSXX..",
+    "..XSESSESX..",
+    "..XSSSSSSX..",
+    "..XXSMMSXX..",
+    "..XX.SS.XX..",
+    "..XXDDDDXX..",
+    "...DDDDDD...",
+    "..SDDDDDDS..",
+    ".S.DDDDDD.S.",
+    ".S.DDDDDD.S.",
+    "...DDDDDD...",
+    "..DDDDDDDD..",
+    "..DDDDDDDD..",
+    ".DDDDDDDDDD.",
+    ".DDDDDDDDDD.",
+    ".DdDDDDDdDD.",
+    "....S..S....",
+    "....S..S....",
+    "...KK..KK...",
+  ];
+  const HUG = WOMAN.map((r, i) => i === 9 ? "SSSDDDDDDSSS" : (i === 10 || i === 11) ? "...DDDDDD..." : r);
+  const womA = { S: '#efb48a', E: '#141218', M: '#c2185b' };
+  const womB = { S: '#a86f4c', E: '#141218', M: '#c2185b' };
+  const woman1 = sprite(WOMAN, { ...womA, X: '#ffd84a', D: '#e8434f', d: '#ffd84a' });
+  const woman1hug = sprite(HUG, { ...womA, X: '#ffd84a', D: '#e8434f', d: '#ffd84a' });
+  const woman2 = sprite(WOMAN, { ...womB, X: '#3a2416', D: '#9a46e0', d: '#f4f1e8' });
+  const woman2hug = sprite(HUG, { ...womB, X: '#3a2416', D: '#9a46e0', d: '#f4f1e8' });
+
+  const dummy = sprite([
+    "..rrrrrr..",
+    ".RRRRRRRR.",
+    "RRRRRRRRRR",
+    "RRWWWWWWRR",
+    "RRRRRRRRRR",
+    "RRRRRRRRRR",
+    "RRRRRRRRRR",
+    "RRWWWWWWRR",
+    "RRRRRRRRRR",
+    "RRRRRRRRRR",
+    "RRRRRRRRRR",
+    "rRRRRRRRRr",
+    ".rrrrrrrr.",
+    "...KKKK...",
+    "..KKKKKK..",
+    ".KKKKKKKK.",
+  ]);
+  const cone = sprite([
+    "....OO....",
+    "....OO....",
+    "...OOOO...",
+    "...WWWW...",
+    "...OOOO...",
+    "..OOOOOO..",
+    "..WWWWWW..",
+    "..OOOOOO..",
+    ".OOOOOOOO.",
+    ".OOOOOOOO.",
+    "oooooooooo",
+    "oooooooooo",
+  ]);
+  const cooler = sprite([
+    "..WWWWWWWW..",
+    ".WWWWWWWWWW.",
+    "OOOOOOOOOOOO",
+    "OOOOOOOOOOOO",
+    "OOOWWWWWWOOO",
+    "OOOWGGGGWOOO",
+    "OOOWGgGGWOOO",
+    "OOOWWWWWWOOO",
+    "OOOOOOOOOOOO",
+    "OOOOOOOOOOOO",
+    "oooooooooooo",
+    ".oooooooooo.",
+  ]);
+  const star = sprite([
+    "...Y...",
+    "...Y...",
+    "YYYYYYY",
+    ".YYYYY.",
+    "..YYY..",
+    ".YY.YY.",
+    "Yy...yY",
+  ]);
+  const heart = sprite([".VV.VV.", "VVVVVVV", "VVVVVVV", ".VVVVV.", "..VVV..", "...V..."]);
+  const heartEmpty = sprite([".vv.vv.", "v..v..v", "v.....v", ".v...v.", "..v.v..", "...v..."]);
+  const OBSTACLES = [
+    { img: dummy, w: 10, h: 16 },
+    { img: cone, w: 10, h: 12 },
+    { img: cooler, w: 12, h: 12 },
+  ];
+
+  // Público: lienzo de 320x50 que se repite en bucle
+  const crowd = (() => {
+    const c = document.createElement('canvas'); c.width = 320; c.height = 50;
+    const x = c.getContext('2d');
+    x.fillStyle = '#1d2540'; x.fillRect(0, 0, 320, 50);
+    const cols = ['#1f5fd6', '#f4f1e8', '#ff9a2e', '#1f5fd6', '#c98a5e', '#efb48a', '#3a2416', '#1f5fd6'];
+    for (let row = 0; row < 7; row++) {
+      x.fillStyle = row % 2 ? '#222c4c' : '#283357'; x.fillRect(0, row * 7 + 4, 320, 3);
+      for (let i = 0; i < 107; i++) {
+        const px = i * 3 + (row % 2);
+        x.fillStyle = cols[(i * 7 + row * 13 + (i * row) % 5) % cols.length];
+        x.fillRect(px, row * 7 + 1, 2, 2);
+        x.fillStyle = cols[(i * 3 + row) % 3 === 0 ? 0 : 1];
+        x.fillRect(px, row * 7 + 3, 2, 2);
+      }
+    }
+    return c;
+  })();
+
+  // ---------- Audio ----------
+  let actx = null, muted = false;
+  try { muted = localStorage.getItem('dg-muted') === '1'; } catch (e) {}
+  function beep(freq, dur, type = 'square', slide = 0, vol = 0.06) {
+    if (muted) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), gn = actx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, actx.currentTime);
+      if (slide) o.frequency.linearRampToValueAtTime(freq + slide, actx.currentTime + dur);
+      gn.gain.setValueAtTime(vol, actx.currentTime);
+      gn.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+      o.connect(gn); gn.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    jump: () => beep(300, 0.16, 'square', 300),
+    star: () => { beep(988, 0.07); setTimeout(() => beep(1319, 0.09), 70); },
+    warn: () => { beep(740, 0.06, 'square', 0, 0.05); setTimeout(() => beep(740, 0.06, 'square', 0, 0.05), 110); },
+    fix: () => beep(520, 0.1, 'triangle', 260, 0.08),
+    hurt: () => beep(150, 0.32, 'sawtooth', -90, 0.08),
+    win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.16), i * 120)),
+    over: () => [392, 330, 262].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0, 0.09), i * 180)),
+  };
+
+  // ---------- Estado ----------
+  let state = 'title', g;
+  let best = 0;
+  try { best = +localStorage.getItem('dg-best') || 0; } catch (e) {}
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  function reset() {
+    g = {
+      t: 0, dist: 0, speed: 2.2, y: GROUND, vy: 0, onGround: true, held: false,
+      obs: [], stars: [], parts: [], nextObs: 170, nextStar: 220, nextTangle: rand(260, 420),
+      tangle: 0, tangleMax: 1, stumble: 0, fixes: 0,
+      lives: 3, inv: 0, shake: 0, starsGot: 0, hug: 0, w2x: 0, winShown: false,
+    };
+  }
+  reset();
+
+  const yards = () => Math.min(100, Math.floor(g.dist / YARD));
+  const score = () => yards() * 10 + g.starsGot * 25 + g.fixes * 15 + (state === 'win' ? 500 : 0);
+
+  // ---------- Entrada ----------
+  function press() {
+    if (state !== 'play') return;
+    g.held = true;
+    if (g.onGround) { g.vy = -6.6; g.onGround = false; sfx.jump(); }
+  }
+  function release() { if (g) g.held = false; }
+  function fixLegs() {
+    if (state !== 'play' || g.tangle <= 0) return;
+    g.tangle = 0; g.fixes++; sfx.fix();
+    puff(PX + 9, g.y - 4, 8, '#2a66e0', 0.3);
+  }
+
+  const ov = { title: $('ovTitle'), over: $('ovOver'), win: $('ovWin') };
+  function show(name) { for (const k in ov) ov[k].hidden = k !== name; }
+  function start() { reset(); state = 'play'; show(null); }
+  const canRestart = () => state === 'title' || state === 'over' || (state === 'win' && g.winShown);
+
+  const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'], FIX_KEYS = ['ArrowDown', 'KeyS'];
+  document.addEventListener('keydown', e => {
+    if (JUMP_KEYS.includes(e.code)) {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (state === 'play') press(); else if (canRestart()) start();
+    } else if (FIX_KEYS.includes(e.code)) {
+      e.preventDefault();
+      if (!e.repeat) fixLegs();
+    }
+  });
+  document.addEventListener('keyup', e => { if (JUMP_KEYS.includes(e.code)) release(); });
+  $('stage').addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    if (state === 'play') { e.preventDefault(); press(); }
+  });
+  $('padJump').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (state === 'play') press(); else if (canRestart()) start();
+  });
+  $('padLegs').addEventListener('pointerdown', e => { e.preventDefault(); fixLegs(); });
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
+  $('btnStart').addEventListener('click', start);
+  $('btnRetry').addEventListener('click', start);
+  $('btnAgain').addEventListener('click', start);
+  const btnMute = $('btnMute');
+  function paintMute() { btnMute.textContent = muted ? 'SONIDO: OFF' : 'SONIDO: ON'; btnMute.setAttribute('aria-pressed', String(muted)); }
+  btnMute.addEventListener('click', () => { muted = !muted; paintMute(); try { localStorage.setItem('dg-muted', muted ? '1' : '0'); } catch (e) {} });
+  paintMute();
+
+  // ---------- Lógica ----------
+  function puff(x, y, n, color, up = 0) {
+    for (let i = 0; i < n; i++) g.parts.push({ x, y, vx: rand(-1, 1), vy: rand(-1.4, -0.2) - up, life: rand(20, 40), color });
+  }
+  function hit(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+  function hurt() {
+    g.lives--; g.inv = 100; g.shake = 12; sfx.hurt();
+    puff(PX + 12, g.y - 10, 10, '#f4f1e8', 0.6);
+    if (g.lives <= 0) { gameOver(); return true; }
+    return false;
+  }
+
+  function update() {
+    g.t++;
+    for (const p of g.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.color === 'heart' ? 0 : 0.06; p.life--; }
+    g.parts = g.parts.filter(p => p.life > 0);
+    if (g.shake > 0) g.shake--;
+
+    if (state === 'win') {
+      g.hug++;
+      const target = PX - 7;
+      if (g.w2x > target) g.w2x = Math.max(target, g.w2x - 1.2);
+      if (g.w2x === target && g.hug % 12 === 0)
+        g.parts.push({ x: PX + rand(0, 22), y: GROUND - 30, vx: rand(-.3, .3), vy: -0.5, life: 70, color: 'heart' });
+      if (g.hug === 170 && !g.winShown) { g.winShown = true; $('winStats').innerHTML = statsHTML(); show('win'); }
+      return;
+    }
+    if (state !== 'play') return;
+
+    const stop = BLD + 24;
+    if (g.dist < GOAL) g.speed = Math.min(4.4, 2.2 + g.dist / 2600);
+    const sp = g.speed;
+    g.dist = Math.min(stop, g.dist + sp);
+
+    // salto variable
+    const grav = (g.held && g.vy < 0) ? 0.28 : 0.55;
+    g.vy += grav; g.y += g.vy;
+    if (g.y >= GROUND) {
+      if (!g.onGround) puff(PX + 10, GROUND, 5, '#a8e0a0');
+      g.y = GROUND; g.vy = 0; g.onGround = true;
+    }
+    if (g.inv > 0) g.inv--;
+    if (g.stumble > 0) g.stumble--;
+
+    // la tercera pierna se traba
+    const playing = g.dist > 240 && g.dist < GOAL - 200;
+    if (g.tangle > 0) {
+      g.tangle--;
+      if (g.tangle === 0) { g.stumble = 40; if (hurt()) return; }
+    } else if (playing) {
+      g.nextTangle -= 1;
+      if (g.nextTangle <= 0) {
+        g.tangleMax = g.tangle = Math.round(Math.max(42, 78 - g.dist / 180));
+        g.nextTangle = rand(200, 380);
+        sfx.warn();
+      }
+    }
+
+    // obstáculos y estrellas (se detienen antes de la meta)
+    const nearGoal = g.dist > GOAL - 380;
+    g.nextObs -= sp;
+    if (g.nextObs <= 0 && !nearGoal) {
+      const k = Math.floor(Math.random() * (g.dist > 1800 ? 4 : 3));
+      if (k === 3) g.obs.push({ ...OBSTACLES[1], x: W + 8 }, { ...OBSTACLES[1], x: W + 18 });
+      else g.obs.push({ ...OBSTACLES[k], x: W + 8 });
+      g.nextObs = rand(130, 250) + sp * 22;
+    }
+    g.nextStar -= sp;
+    if (g.nextStar <= 0 && !nearGoal) {
+      g.stars.push({ x: W + 8, y: GROUND - rand(34, 62), w: 7, h: 7 });
+      g.nextStar = rand(160, 340);
+    }
+    for (const o of g.obs) o.x -= sp;
+    for (const s of g.stars) s.x -= sp;
+    g.obs = g.obs.filter(o => o.x > -20);
+    g.stars = g.stars.filter(s => s.x > -20 && !s.got);
+
+    const box = { x: PX + 5, y: g.y - 24, w: 13, h: 23 };
+    for (const o of g.obs) {
+      if (g.inv === 0 && hit(box, { x: o.x + 2, y: GROUND - o.h + 2, w: o.w - 4, h: o.h - 2 })) { if (hurt()) return; }
+    }
+    for (const s of g.stars) {
+      if (!s.got && hit({ x: PX + 2, y: g.y - 26, w: 20, h: 26 }, s)) {
+        s.got = true; g.starsGot++; sfx.star(); puff(s.x + 3, s.y + 3, 8, '#ffd84a', 0.4);
+      }
+    }
+
+    if (g.dist >= stop && g.onGround) win();
+  }
+
+  function statsHTML() {
+    const s = score();
+    const isBest = s > best;
+    if (isBest) { best = s; try { localStorage.setItem('dg-best', String(best)); } catch (e) {} }
+    return `YARDAS ${yards()}<br>ESTRELLAS ${g.starsGot} &middot; PIERNAS ${g.fixes}<br>PUNTOS ${s}${isBest ? ' ★ RECORD' : ''}<br>MEJOR ${best}`;
+  }
+  function gameOver() { state = 'over'; g.tangle = 0; sfx.over(); $('overStats').innerHTML = statsHTML(); setTimeout(() => { if (state === 'over') show('over'); }, 500); }
+  function win() { state = 'win'; g.hug = 0; g.tangle = 0; g.w2x = sx(BLD + 46); sfx.win(); }
+
+  // ---------- Dibujo ----------
+  function text(s, x, y, color = '#f4f1e8', align = 'left') {
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.textAlign = align; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#000'; ctx.fillText(s, x + 1, y + 1);
+    ctx.fillStyle = color; ctx.fillText(s, x, y);
+  }
+
+  const SKY = ['#070b1a', '#0b1226', '#101a33', '#152242'];
+  function drawBG() {
+    const off = g.dist;
+    const band = 60 / SKY.length;
+    SKY.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(0, Math.floor(i * band), W, Math.ceil(band) + 1); });
+    ctx.fillStyle = '#9fb3d9';
+    for (let i = 0; i < 24; i++) { const x = (i * 53 + 17) % W, y = (i * 29) % 46 + 4; if ((i + Math.floor(g.t / 40)) % 7) ctx.fillRect(x, y, 1, 1); }
+
+    // torres de luz
+    for (let i = 0; i < 3; i++) {
+      const x = ((i * 140 - off * 0.12) % 420 + 420) % 420 - 50;
+      ctx.fillStyle = '#2a3554'; ctx.fillRect(x + 9, 22, 2, 40);
+      ctx.fillStyle = '#3a4670'; ctx.fillRect(x, 14, 20, 9);
+      ctx.fillStyle = '#fff6c8';
+      for (let k = 0; k < 4; k++) ctx.fillRect(x + 1 + k * 5, 15, 3, 3), ctx.fillRect(x + 1 + k * 5, 19, 3, 3);
+    }
+
+    // gradas con público
+    const cOff = Math.floor(off * 0.3) % 320;
+    ctx.drawImage(crowd, -cOff, 58); ctx.drawImage(crowd, 320 - cOff, 58);
+    for (let i = 0; i < 18; i++) {   // flashes de cámaras
+      if ((i * 31 + g.t) % 97 === 0) { ctx.fillStyle = '#fff'; ctx.fillRect((i * 47 + 11) % W, 62 + (i * 13) % 40, 2, 2); }
+    }
+
+    // valla publicitaria
+    const aOff = off * 0.6;
+    ctx.fillStyle = '#0d1630'; ctx.fillRect(0, 108, W, 18);
+    const ads = ['VAMOS DIEGOTE', '3 PIERNAS', 'OSOS AZULES', 'CORRE!'];
+    const segW = 120;
+    for (let i = -1; i < 4; i++) {
+      const idx = Math.floor(aOff / segW) + i;
+      const x = Math.round(idx * segW - aOff);
+      ctx.fillStyle = idx % 2 ? '#1f5fd6' : '#ff9a2e'; ctx.fillRect(x + 2, 110, segW - 4, 14);
+      text(ads[((idx % ads.length) + ads.length) % ads.length], x + segW / 2, 113, idx % 2 ? '#f4f1e8' : '#10182c', 'center');
+    }
+    ctx.fillStyle = '#1f2a48'; ctx.fillRect(0, 126, W, 4);
+    ctx.fillStyle = '#2c6b3a'; ctx.fillRect(0, 130, W, GROUND - 130);   // banda lateral
+
+    // campo: franjas cada 5 yardas, números reales del campo
+    for (let yd = -10; yd <= 125; yd += 5) {
+      const x0 = sx(yd * YARD), x1 = sx((yd + 5) * YARD);
+      if (x1 < 0 || x0 > W) continue;
+      let col = (yd / 5) % 2 ? '#3f9b45' : '#358a3c';
+      if (yd >= 100 && yd < 110) col = '#1f5fd6';           // end zone
+      else if (yd >= 110 || yd < 0) col = '#4a4f5c';        // fuera del campo / acera
+      ctx.fillStyle = col; ctx.fillRect(x0, GROUND, x1 - x0, H - GROUND);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(0, GROUND, W, 2);
+    for (let yd = 0; yd <= 100; yd += 5) {
+      const x = sx(yd * YARD);
+      if (x < -20 || x > W + 20) continue;
+      ctx.fillStyle = '#f4f1e8'; ctx.fillRect(x, GROUND + 2, yd % 50 === 0 || yd === 100 ? 2 : 1, H - GROUND - 2);
+      if (yd % 10 === 0 && yd > 0 && yd < 100) text(String(yd <= 50 ? yd : 100 - yd), x, GROUND + 12, '#f4f1e8', 'center');
+    }
+    const ez = sx(GOAL + 5 * YARD);
+    if (ez > -40 && ez < W + 40) text('TD', ez, GROUND + 10, '#f4f1e8', 'center');
+  }
+
+  function drawBrothel() {
+    const x = sx(BLD) - 30;
+    if (x > W + 10 || x + 120 < 0) return;
+    const top = GROUND - 82;
+    ctx.fillStyle = '#3a1630'; ctx.fillRect(x, top + 8, 120, 82 - 8);
+    ctx.fillStyle = '#5a2246'; ctx.fillRect(x + 4, top + 12, 112, 70);
+    ctx.fillStyle = '#2a0f22'; ctx.fillRect(x - 4, top + 4, 128, 6);
+    // ventanas con cortina
+    for (let i = 0; i < 4; i++) {
+      const wx = x + 10 + i * 27;
+      ctx.fillStyle = '#ff7ab8'; ctx.fillRect(wx, top + 18, 16, 14);
+      ctx.fillStyle = '#c2185b'; ctx.fillRect(wx, top + 18, 4, 14); ctx.fillRect(wx + 12, top + 18, 4, 14);
+      ctx.fillStyle = '#2a0f22'; ctx.fillRect(wx - 1, top + 32, 18, 2);
+    }
+    // letrero de neón
+    const on = Math.floor(g.t / 18) % 4 !== 0;
+    ctx.fillStyle = '#16070f'; ctx.fillRect(x + 28, top + 38, 64, 14);
+    ctx.fillStyle = on ? '#ff5fb0' : '#5a2246'; ctx.fillRect(x + 27, top + 37, 66, 1); ctx.fillRect(x + 27, top + 52, 66, 1);
+    text('BURDEL', x + 60, top + 41, on ? '#ffd1ea' : '#a0507e', 'center');
+    // puerta
+    ctx.fillStyle = '#16070f'; ctx.fillRect(x + 72, GROUND - 24, 20, 24);
+    ctx.fillStyle = '#c2185b'; ctx.fillRect(x + 72, GROUND - 24, 20, 3);
+    ctx.fillStyle = '#ffd84a'; ctx.fillRect(x + 88, GROUND - 12, 2, 2);
+    // farolito rojo
+    ctx.fillStyle = Math.floor(g.t / 10) % 2 ? '#ff3b3b' : '#c22020'; ctx.fillRect(x + 96, GROUND - 32, 4, 5);
+  }
+
+  function drawWomen() {
+    if (state === 'win') {
+      const hugging = g.w2x <= PX - 7;
+      ctx.drawImage(hugging ? woman2hug : woman2, Math.round(g.w2x), GROUND - 21);
+      ctx.drawImage(woman1hug, PX + 15, GROUND - 21);
+      return;
+    }
+    const x1 = sx(BLD + 30), x2 = sx(BLD + 46);
+    if (x1 > W + 10) return;
+    const wave = Math.floor(g.t / 20) % 2;
+    ctx.drawImage(wave ? woman1hug : woman1, x1, GROUND - 21);
+    ctx.drawImage(wave ? woman2 : woman2hug, x2, GROUND - 21);
+  }
+
+  function drawHUD() {
+    ctx.fillStyle = 'rgba(7,11,26,.85)'; ctx.fillRect(0, 0, W, 27);
+    for (let i = 0; i < 3; i++) ctx.drawImage(i < g.lives ? heart : heartEmpty, 6 + i * 10, 7);
+    text(String(score()).padStart(5, '0'), W - 6, 6, '#f4f1e8', 'right');
+    ctx.drawImage(star, W - 108, 6);
+    text('x' + g.starsGot, W - 98, 6, '#ffd84a');
+    // progreso: yardas
+    const px = 44, pw = 150, py = 9;
+    ctx.fillStyle = '#000'; ctx.fillRect(px - 1, py - 1, pw + 2, 6);
+    ctx.fillStyle = '#2f4a7a'; ctx.fillRect(px, py, pw, 4);
+    const p = Math.min(1, g.dist / GOAL);
+    ctx.fillStyle = '#ff9a2e'; ctx.fillRect(px, py, Math.floor(pw * p), 4);
+    ctx.fillStyle = '#7a3f1c'; ctx.fillRect(px + Math.floor(pw * p) - 2, py - 2, 5, 3);
+    ctx.fillStyle = '#1f5fd6'; ctx.fillRect(px + pw + 3, py - 2, 8, 7);
+    text('YD ' + yards() + '/100', px, py + 7);
+  }
+
+  function drawTangleAlert() {
+    if (g.tangle <= 0) return;
+    const x = PX + 2, y = Math.round(g.y) - 46;
+    const flash = Math.floor(g.t / 6) % 2;
+    ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, 40, 17);
+    ctx.fillStyle = flash ? '#e8434f' : '#ff9a2e'; ctx.fillRect(x, y, 38, 15);
+    // flecha abajo pixelada
+    ctx.fillStyle = '#f4f1e8';
+    ctx.fillRect(x + 4, y + 3, 2, 5); ctx.fillRect(x + 2, y + 7, 6, 1); ctx.fillRect(x + 3, y + 8, 4, 1); ctx.fillRect(x + 4, y + 9, 2, 1);
+    text('S', x + 12, y + 4, '#f4f1e8');
+    text('!', x + 26, y + 4, '#ffd84a');
+    // tiempo restante
+    const w = Math.round(38 * g.tangle / g.tangleMax);
+    ctx.fillStyle = '#000'; ctx.fillRect(x, y + 16, 38, 2);
+    ctx.fillStyle = '#ffd84a'; ctx.fillRect(x, y + 16, w, 2);
+    text('PIERNAS!', x + 44, y + 4, '#ffd84a');
+  }
+
+  function render() {
+    ctx.save();
+    if (g.shake > 0) ctx.translate(Math.round(rand(-2, 2)), Math.round(rand(-2, 2)));
+    drawBG();
+    drawBrothel();
+    for (const o of g.obs) ctx.drawImage(o.img, Math.round(o.x), GROUND - o.h);
+    for (const s of g.stars) ctx.drawImage(star, Math.round(s.x), Math.round(s.y + Math.sin((g.t + s.x) / 8) * 1.5));
+    drawWomen();
+
+    const visible = g.inv === 0 || Math.floor(g.inv / 5) % 2 === 0;
+    if (visible) {
+      let mode = 'run';
+      if (state === 'title') mode = 'hug';
+      else if (state === 'win') mode = 'hug';
+      else if (g.tangle > 0 || g.stumble > 0) mode = g.onGround ? 'tangle' : 'air';
+      else if (!g.onGround) mode = 'air';
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      const sh = Math.max(6, 18 - Math.floor((GROUND - g.y) / 4));
+      ctx.fillRect(PX + 11 - sh / 2, GROUND, sh, 2);
+      drawPlayer(PX, Math.round(g.y) + (state === 'win' && g.hug % 20 < 10 ? -1 : 0), mode);
+    }
+    if (state === 'win') {   // segunda mujer abraza por delante del jugador
+      if (g.w2x <= PX - 7) {
+        ctx.fillStyle = '#a86f4c'; ctx.fillRect(PX + 4, GROUND - 12, 8, 1);
+      }
+      ctx.fillStyle = '#efb48a'; ctx.fillRect(PX + 12, GROUND - 13, 4, 1);
+    }
+
+    for (const p of g.parts) {
+      if (p.color === 'heart') ctx.drawImage(heart, Math.round(p.x), Math.round(p.y));
+      else { ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); }
+    }
+    if (state === 'play') drawTangleAlert();
+    ctx.restore();
+    if (state !== 'title') drawHUD();
+  }
+
+  // ---------- Bucle con paso fijo ----------
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    acc += Math.min(100, now - last); last = now;
+    while (acc >= 1000 / 60) {
+      if (state === 'title') { g.t++; g.dist += 0.8; if (g.dist > 600) g.dist = 0; } else update();
+      acc -= 1000 / 60;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  (document.fonts && document.fonts.load ? document.fonts.load('8px "Press Start 2P"').catch(() => {}) : Promise.resolve())
+    .finally(() => requestAnimationFrame(frame));
+  show('title');
+})();
+</script>
+</body>
+</html>
